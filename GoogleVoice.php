@@ -206,6 +206,20 @@ class GoogleVoice
 		curl_exec($this->_ch);
 	}
 
+	public function markSMSUnRead($msgID)
+	{
+		$this->_logIn();
+
+		curl_setopt($this->_ch, CURLOPT_URL, 'https://www.google.com/voice/inbox/mark/');
+		curl_setopt($this->_ch, CURLOPT_POST, TRUE);
+		curl_setopt($this->_ch, CURLOPT_POSTFIELDS, array(
+			'_rnr_se'=>$this->_rnr_se,
+			'messages'=>$msgID,
+			'read'=>0
+			));
+		curl_exec($this->_ch);
+	}
+
 	public function markMsgTrash($msgID)
 	{
 		$this->_logIn();
