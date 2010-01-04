@@ -206,6 +206,20 @@ class GoogleVoice
 		curl_exec($this->_ch);
 	}
 
+	public function markMsgTrash($msgID)
+	{
+		$this->_logIn();
+
+		curl_setopt($this->_ch, CURLOPT_URL, 'https://www.google.com/voice/deleteMessages/');
+		curl_setopt($this->_ch, CURLOPT_POST, TRUE);
+		curl_setopt($this->_ch, CURLOPT_POSTFIELDS, array(
+			'_rnr_se'=>$this->_rnr_se,
+			'messages'=>$msgID,
+			'trash'=>1
+			));
+		curl_exec($this->_ch);
+	}
+ 
 	public function getNewVoicemail()
 	{
 		$this->_logIn();
