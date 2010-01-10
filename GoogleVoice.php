@@ -21,7 +21,7 @@ class GoogleVoice
 		$this->_login = $login;
 		$this->_pass = $pass;
 
-		$this->_cookieFile = '/tmp/gvCookies.txt';
+		$this->_cookieFile = '/tmp/gvCookies-'.md5($login).'.txt';
 
 		$this->_ch = curl_init();
 		curl_setopt($this->_ch, CURLOPT_COOKIEJAR, $this->_cookieFile);
@@ -114,7 +114,11 @@ class GoogleVoice
 		curl_exec($this->_ch);
 	}
 	
-	public function getNewSMS()
+	public function getNewSMS() {
+		return $this->getSMS("unread", TRUE);
+	}
+	
+	public function getSMS($in_label="unread", $ignore_me=TRUE)
 	{
 		$this->_logIn();
 		curl_setopt($this->_ch, CURLOPT_URL, 'https://www.google.com/voice/inbox/recent/sms/');
@@ -141,9 +145,10 @@ class GoogleVoice
 		foreach( $json->messages as $mid=>$convo )
 		{
 			$elements = $xpath->query("//div[@id='$mid']//div[@class='gc-message-sms-row']");
+
 			if(!is_null($elements))
 			{
-				if( in_array('unread', $convo->labels) )
+				if( in_array($in_label, $convo->labels) )
 				{
 					foreach($elements as $i=>$element)
 					{
@@ -152,7 +157,7 @@ class GoogleVoice
 						foreach($XMsgFrom as $m)
 							$msgFrom = trim($m->nodeValue);
 
-						if( $msgFrom != "Me:" )
+						if( !$ignore_me || ($ignore_me && $msgFrom != "Me:") )
 						{
 							$XMsgText = $xpath->query("span[@class='gc-message-sms-text']", $element);
 							$msgText = '';
@@ -164,7 +169,12 @@ class GoogleVoice
 							foreach($XMsgTime as $m)
 								$msgTime = trim($m->nodeValue);
 	
-							$results[] = array('msgID'=>$mid, 'phoneNumber'=>$convo->phoneNumber, 'message'=>$msgText, 'date'=>date('Y-m-d H:i:s', strtotime(date('m/d/Y ',intval($convo->startTime/1000)).$msgTime)));
+							$results[] = array(
+												'msgID'=>$mid,
+												'phoneNumber'=>$convo->phoneNumber,
+												'message'=>$msgText,
+												'type' => $msgFrom != "Me:" ? 'received' : 'sent',
+												'date'=>date('Y-m-d H:i:s', strtotime(date('m/d/Y ',intval($convo->startTime/1000)).$msgTime)));
 						}
 					}
 				}
