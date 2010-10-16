@@ -24,9 +24,11 @@ $submitted = $_POST['submitted'];
 $username = $_POST['username'];
 $password = $_POST['password'];
 $numbersRaw = $_POST['numbersRaw'];
+$message = $_POST['message'];
 
 if (!empty($submitted) && $submitted == 'submitted'
-	&& !empty($username) && !empty($password) && !empty($numbersRaw)) {
+	&& !empty($username) && !empty($password) && !empty($numbersRaw)
+	&& !empty($message)) {
 	
 	$numbers = explode(',', $numbersRaw);
 	
@@ -34,18 +36,32 @@ if (!empty($submitted) && $submitted == 'submitted'
 	
 	$gv = new GoogleVoice($username, $password);
 	
+	$errorMsg = '';
+	
 	echo 'Sending Messages...<br/><br/>';
-	
-	$gv->sendSMSToGroup($numbers, 'Test MSG to a group.');
-	
-	echo "Message sent to the following: <br/>";
-	
-	echo '<ul>';
-	foreach ($numbers as $number)
+	try {
+		$gv->sendSMSToGroup($numbers, $message);
+	} catch (Exception $e)
 	{
-		echo '<li>', $number, '</li>';
+		$errorMsg = $e->getMessage();
 	}
-	echo '</ul>';
+	
+	if ($errorMsg != '')
+	{
+		echo "Unable to send messages for the following reason:<br/>";
+		echo '<ul><li>', htmlentities($errorMsg), '</li></ul>';
+	} else {
+		echo "Message sent to the following: <br/>";
+		
+		echo '<ul>';
+		foreach ($numbers as $number)
+		{
+			echo '<li>', $number, '</li>';
+		}
+		echo '</ul>';
+	}
+	
+	
 }
 ?>
 
@@ -53,12 +69,14 @@ if (!empty($submitted) && $submitted == 'submitted'
 <div>Enter the following information to test this function:</div>
 <form method="post" action="TestSendSMSToGroup.php">
 <label for="username">GV Username:</label>
-<input type="text" name="username" value="<?php echo $username; ?>" /><br />
+<input type="text" name="username" value="<?php echo htmlentities($username); ?>" /><br />
 <label for="password">GV Password:</label>
-<input type="password" name="password" value="<?php echo $password; ?>" /><br />
+<input type="password" name="password" value="<?php echo htmlentities($password); ?>" /><br />
 <label for="numbersRaw">Numbers (separated by comma):</label>
-<input type="text" name="numbersRaw" value="<?php echo $numbersRaw; ?>" /><br />
-<input type="submit" value="Test Values" />
+<input type="text" name="numbersRaw" value="<?php echo htmlentities($numbersRaw); ?>" /><br />
+<label for="message">Message:</label><br />
+<textarea name="message" cols="20" rows="7"><?php echo htmlentities(empty($message) ? 'Test MSG to group.' : $message); ?></textarea><br />
+<input type="submit" value="Send Message" />
 <input type="hidden" name="submitted" value="submitted" />
 </form>
 </body>
