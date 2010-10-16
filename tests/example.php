@@ -8,10 +8,10 @@ echo '<pre>';
 echo 'Phone Number: ', $gv->getNumber(), "\n\n";
 
 // call a phone from one of your forwarding phones
-$gv->callNumber('8285530205', '8285536915', 'mobile');
+$gv->callNumber('9999999999', '8888888888', 'mobile');
 
 // send an SMS to a phone number
-$gv->sendSMS('8285530205', 'Sending a message!');
+$gv->sendSMS('9999999999', 'Sending a message!');
 
 // fetch new voicemails
 $voicemails = $gv->getNewVoicemail();
