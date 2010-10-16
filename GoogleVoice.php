@@ -66,6 +66,28 @@ class GoogleVoice
 			throw new Exception("Could not log in to Google Voice with username: " . $this->_login);
 		}
 	}
+	/**
+	 * Retrieve the Google Voice number associated with the login information.
+	 */
+	public function getNumber()
+	{
+		$this->_logIn();
+		
+		curl_setopt($this->_ch, CURLOPT_URL, 'https://www.google.com/voice/m');
+		curl_setopt($this->_ch, CURLOPT_POST, FALSE);
+		curl_setopt($this->_ch, CURLOPT_RETURNTRANSFER, TRUE);
+		$pageText = curl_exec($this->_ch);
+		
+		if (preg_match('%<b.*?class="ms3".*?>(.*?)</b>%i', $pageText, $phoneArray)) {
+			$phoneNumber = $phoneArray[1];
+		} else {
+			throw new Exception('Phone number could not be retrieved.');
+		}
+		
+		$phoneNumber = str_replace(array(" ","(",")","-"), "", $phoneNumber);
+		
+		return $phoneNumber;
+	}
 
 	/**
 	 * Place a call to $number connecting first to $fromNumber
@@ -91,7 +113,7 @@ class GoogleVoice
 		curl_setopt($this->_ch, CURLOPT_POST, TRUE);
 		curl_setopt($this->_ch, CURLOPT_POSTFIELDS, array(
 			'_rnr_se'=>$this->_rnr_se,
-			'forwardingNumber'=>'+1' . $fromNumber,
+			'forwardingNumber'=>$fromNumber,
 			'outgoingNumber'=>$number,
 			'phoneType'=>$types[$phoneType],
 			'remember'=>0,
@@ -108,10 +130,44 @@ class GoogleVoice
 		curl_setopt($this->_ch, CURLOPT_POST, TRUE);
 		curl_setopt($this->_ch, CURLOPT_POSTFIELDS, array(
 			'_rnr_se'=>$this->_rnr_se,
-			'phoneNumber'=>'+1' . $number,
+			'phoneNumber'=>$number,
 			'text'=>$message
 			));
 		curl_exec($this->_ch);
+	}
+	
+	/**
+	 * Sends an SMS message to a group of phones at once.
+	 * 
+	 * @param array $numbers is an array of phone numbers to send the message to.
+	 * @param string $message is the message to send.
+	 * @param int $maxRecipientsPerMessage is the total number or recipients to send in
+	 * 										one message.  Google Voice only allows five
+	 * 										recipients per message.
+	 */
+	public function sendSMSToGroup($numbers, $message, $maxRecipientsPerMessage=5)
+	{
+		if (!is_array($numbers)) {	// Require an array of phone numbers.
+			throw new Exception('Please be sure to pass an array of numbers when sending SMS to a group.');
+		}
+		
+		$numbers = array_unique($numbers);	// Only want unique numbers so multiple of the same
+											// SMS is not sent to the same person.
+		
+		$numberGroup = '';
+		
+		for ($i=0; $i < count($numbers); ++$i)
+		{
+			// Create a string of numbers concatenated together with <comma><space> between them.
+			$numberGroup .= ($i==0) ? $numbers[$i] : ', ' . $numbers[$i];
+			
+			// Determine every $maxRecipientsPerMessage times through the loop 
+			if (($i != 0 && ($i % $maxRecipientsPerMessage) == 0) || $i == count($numbers)-1)
+			{
+				$this->sendSMS($numberGroup, $message);	// send the SMS to $maxRecipientsPerMessage phones
+				$numberGroup = '';				// reset $numberGroup for next group of phone numbers.
+			}
+		}
 	}
 	
 	public function getNewSMS() {

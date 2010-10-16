@@ -1,13 +1,17 @@
 <?php
-include('GoogleVoice.php');
+include('../GoogleVoice.php');
+include('LoginInfo.php');
 
-$gv = new GoogleVoice('your.name', 'password');
+$gv = new GoogleVoice($username, $password);
+
+echo '<pre>';
+echo 'Phone Number: ', $gv->getNumber(), "\n\n";
 
 // call a phone from one of your forwarding phones
-$gv->callNumber('9995551212', '5558675309', 'mobile');
+$gv->callNumber('8285530205', '8285536915', 'mobile');
 
 // send an SMS to a phone number
-$gv->sendSMS('9995551212', 'Sending a message!');
+$gv->sendSMS('8285530205', 'Sending a message!');
 
 // fetch new voicemails
 $voicemails = $gv->getNewVoicemail();
@@ -44,5 +48,6 @@ foreach( $sms as $s )
                 $msgIDs[] = $s['msgID'];
         }
 }
+echo '</pre>';
 
 ?>
