@@ -12,7 +12,6 @@ function trim_value(&$value)
 
 		
 include_once('../GoogleVoice.php');
-include_once('LoginInfo.php');
 
 //include_once('../firephp/FirePHP.class.php');
 //
