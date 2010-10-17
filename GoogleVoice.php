@@ -30,6 +30,17 @@ class GoogleVoice
 		curl_setopt($this->_ch, CURLOPT_USERAGENT, "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 6.0)");
 	}
 	
+	/**
+	 * Clean up the class and remove any unneeded residual files.
+	 */
+	public function __destruct()
+	{
+		if (file_exists($this->_cookieFile)) {
+			unlink($this->_cookieFile);	// delete the cookie so we don't clutter our
+										// tmp folder with unneeded cookies.
+		}
+	}
+	
 	private function _logIn()
 	{
 		global $conf;
@@ -122,22 +133,8 @@ class GoogleVoice
 		curl_exec($this->_ch);
 	}
 
-	public function sendSMS($number, $message)
-	{
-		$this->_logIn();
-
-		curl_setopt($this->_ch, CURLOPT_URL, 'https://www.google.com/voice/sms/send/');
-		curl_setopt($this->_ch, CURLOPT_POST, TRUE);
-		curl_setopt($this->_ch, CURLOPT_POSTFIELDS, array(
-			'_rnr_se'=>$this->_rnr_se,
-			'phoneNumber'=>$number,
-			'text'=>$message
-			));
-		curl_exec($this->_ch);
-	}
-	
 	/**
-	 * Sends an SMS message to a group of phones at once.
+	 * Sends an SMS message.
 	 * 
 	 * @param array $numbers is an array of phone numbers to send the message to.
 	 * @param string $message is the message to send.
@@ -145,11 +142,13 @@ class GoogleVoice
 	 * 										one message.  Google Voice only allows five
 	 * 										recipients per message.
 	 */
-	public function sendSMSToGroup($numbers, $message, $maxRecipientsPerMessage=5)
+	public function sendSMS($numbers, $message, $maxRecipientsPerMessage=5)
 	{
 		if (!is_array($numbers)) {	// Require an array of phone numbers.
 			throw new Exception('Please be sure to pass an array of numbers when sending SMS to a group.');
 		}
+		
+		$this->_logIn();
 		
 		$numbers = array_unique($numbers);	// Only want unique numbers so multiple of the same
 											// SMS is not sent to the same person.
@@ -164,10 +163,23 @@ class GoogleVoice
 			// Determine every $maxRecipientsPerMessage times through the loop 
 			if (($i != 0 && ($i % $maxRecipientsPerMessage) == 0) || $i == count($numbers)-1)
 			{
-				$this->sendSMS($numberGroup, $message);	// send the SMS to $maxRecipientsPerMessage phones
-				$numberGroup = '';				// reset $numberGroup for next group of phone numbers.
+				// send the SMS to $maxRecipientsPerMessage phones
+				curl_setopt($this->_ch, CURLOPT_URL, 'https://www.google.com/voice/sms/send/');
+				curl_setopt($this->_ch, CURLOPT_POST, TRUE);
+				curl_setopt($this->_ch, CURLOPT_POSTFIELDS, array(
+					'_rnr_se'=>$this->_rnr_se,
+					'phoneNumber'=>$numberGroup,
+					'text'=>$message
+					));
+				curl_exec($this->_ch);
+				
+				// reset $numberGroup for next group of phone numbers.
+				$numberGroup = '';
 			}
 		}
+		
+		// return the array of numbers that the message was sent to (either successful or not)
+		return $numbers;
 	}
 	
 	public function getNewSMS() {
