@@ -150,32 +150,40 @@ class GoogleVoice
 		
 		$this->_logIn();
 		
-		$numbers = array_unique($numbers);	// Only want unique numbers so multiple of the same
-											// SMS is not sent to the same person.
+		$numbers = array_unique($numbers);	// Only want unique numbers, though Google is smart
+											// enough to send only 1 SMS when duplicate numbers
+											// exist.
 		
-		$numberGroup = '';
+		$numberGroups = array_chunk($numbers, $maxRecipientsPerMessage);
 		
-		for ($i=0; $i < count($numbers); ++$i)
+		for ($i=0; $i < count($numberGroups); ++$i)
 		{
-			// Create a string of numbers concatenated together with <comma><space> between them.
-			$numberGroup .= ($i==0) ? $numbers[$i] : ', ' . $numbers[$i];
-			
-			// Determine every $maxRecipientsPerMessage times through the loop 
-			if (($i != 0 && ($i % $maxRecipientsPerMessage) == 0) || $i == count($numbers)-1)
+			$numberString = '';
+			for ($j=0; $j < count($numberGroups[$i]); ++$j)
 			{
-				// send the SMS to $maxRecipientsPerMessage phones
-				curl_setopt($this->_ch, CURLOPT_URL, 'https://www.google.com/voice/sms/send/');
-				curl_setopt($this->_ch, CURLOPT_POST, TRUE);
-				curl_setopt($this->_ch, CURLOPT_POSTFIELDS, array(
-					'_rnr_se'=>$this->_rnr_se,
-					'phoneNumber'=>$numberGroup,
-					'text'=>$message
-					));
-				curl_exec($this->_ch);
-				
-				// reset $numberGroup for next group of phone numbers.
-				$numberGroup = '';
+				// Create a string of numbers concatenated together with <comma><space> between them.
+				$numberString .= ($j==0) ? $numberGroups[$i][$j] : ', ' . $numberGroups[$i][$j];
 			}
+			
+			if ($i > 0)	// if the count of recipients is greater than $maxRecipientsPerMessage
+			{
+				// Generate a 3-character string using letters [a-z] (ascii 97 through 122).
+				// It will look something like ' +jhx' at the end of the TXT for recipients
+				// greater than $maxRecipientsPerMessage. Doing this will make Google think
+				// it's a different TXT and send out the message to more than 5 recipients.
+				$randStr = ' +' . chr(mt_rand(97, 122)) . chr(mt_rand(97, 122)) . chr(mt_rand(97, 122));
+				$message .= $randStr;
+			}
+			
+			// send the SMS to $maxRecipientsPerMessage phones
+			curl_setopt($this->_ch, CURLOPT_URL, 'https://www.google.com/voice/sms/send/');
+			curl_setopt($this->_ch, CURLOPT_POST, TRUE);
+			curl_setopt($this->_ch, CURLOPT_POSTFIELDS, array(
+				'_rnr_se'=>$this->_rnr_se,
+				'phoneNumber'=>$numberString,
+				'text'=>$message
+				));
+			curl_exec($this->_ch);
 		}
 		
 		// return the array of numbers that the message was sent to (either successful or not)
