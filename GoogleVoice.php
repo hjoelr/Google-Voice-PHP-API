@@ -35,6 +35,8 @@ class GoogleVoice
 	 */
 	public function __destruct()
 	{
+		curl_close($this->_ch);	// close cURL handle
+		
 		if (file_exists($this->_cookieFile)) {
 			unlink($this->_cookieFile);	// delete the cookie so we don't clutter our
 										// tmp folder with unneeded cookies.
@@ -134,13 +136,22 @@ class GoogleVoice
 	}
 
 	/**
-	 * Sends an SMS message.
+	 * Sends an SMS message.  The larger the number of recipients, the longer this
+	 * function will take to complete.  An array is returned containing recipients to
+	 * which the message was unable to be sent.  If all recipients were able to recieve
+	 * the message, the returned array will be empty.
 	 * 
 	 * @param array $numbers is an array of phone numbers to send the message to.
 	 * @param string $message is the message to send.
 	 * @param int $maxRecipientsPerMessage is the total number or recipients to send in
 	 * 										one message.  Google Voice only allows five
 	 * 										recipients per message.
+	 * @return array of recipients numbers to which the message failed to send.  The
+	 * 			array will be in the following format:
+	 * 
+	 * 			array(array("numbers" => array(num1, num2, ...), "code" => <code>), ...)
+	 * 			
+	 * 			If there are no failed attempts the array will be empty.
 	 */
 	public function sendSMS($numbers, $message, $maxRecipientsPerMessage=5)
 	{
@@ -153,41 +164,62 @@ class GoogleVoice
 		$numbers = array_unique($numbers);	// Only want unique numbers, though Google is smart
 											// enough to send only 1 SMS when duplicate numbers
 											// exist.
+											
+		$failed = array();
 		
 		$numberGroups = array_chunk($numbers, $maxRecipientsPerMessage);
 		
+		// loop through each group of numbers
 		for ($i=0; $i < count($numberGroups); ++$i)
 		{
 			$numberString = '';
+			
+			// loop through this chunk of numbers and create the string Google is looking for.
 			for ($j=0; $j < count($numberGroups[$i]); ++$j)
 			{
 				// Create a string of numbers concatenated together with <comma><space> between them.
 				$numberString .= ($j==0) ? $numberGroups[$i][$j] : ', ' . $numberGroups[$i][$j];
 			}
 			
-			if ($i > 0)	// if the count of recipients is greater than $maxRecipientsPerMessage
-			{
-				// Generate a 3-character string using letters [a-z] (ascii 97 through 122).
-				// It will look something like ' +jhx' at the end of the TXT for recipients
-				// greater than $maxRecipientsPerMessage. Doing this will make Google think
-				// it's a different TXT and send out the message to more than 5 recipients.
-				$randStr = ' +' . chr(mt_rand(97, 122)) . chr(mt_rand(97, 122)) . chr(mt_rand(97, 122));
-				$message .= $randStr;
-			}
+			$retryCount = 0;
+			$responseObj = NULL;
+			do {
+				++$retryCount;
+				
+				if (!empty($responseObj))
+				{
+					if (intval($responseObj->data->code) == 58)	// code 58 seems to mean "attempted too soon"
+					{
+						sleep(5);	// sleep a few seconds and try it again.
+					} else {
+						// some other error occurred that we assume won't ever allow the message to send.
+						break;
+					}
+				}
+				
+				// send the SMS to $maxRecipientsPerMessage phones
+				curl_setopt($this->_ch, CURLOPT_URL, 'https://www.google.com/voice/sms/send/');
+				curl_setopt($this->_ch, CURLOPT_POST, TRUE);
+				curl_setopt($this->_ch, CURLOPT_POSTFIELDS, array(
+					'_rnr_se'=>$this->_rnr_se,
+					'phoneNumber'=>$numberString,
+					'text'=>$message
+					));
+				$responseRaw = curl_exec($this->_ch);
+				$responseObj = json_decode($responseRaw);
+				
+			} while ($retryCount < 3 && $responseObj->ok != true); // try again up to 3 times if message send failed.
 			
-			// send the SMS to $maxRecipientsPerMessage phones
-			curl_setopt($this->_ch, CURLOPT_URL, 'https://www.google.com/voice/sms/send/');
-			curl_setopt($this->_ch, CURLOPT_POST, TRUE);
-			curl_setopt($this->_ch, CURLOPT_POSTFIELDS, array(
-				'_rnr_se'=>$this->_rnr_se,
-				'phoneNumber'=>$numberString,
-				'text'=>$message
-				));
-			curl_exec($this->_ch);
+			if (empty($responseObj))
+			{
+				$failed[] = array("numbers"=>$numberGroups[$i], "code"=>500);	// unknown error occurred
+			} elseif ($responseObj->ok != true) {
+				$failed[] = array("numbers"=>$numberGroups[$i], "code"=>$responseObj->data->code);
+			}
 		}
 		
-		// return the array of numbers that the message was sent to (either successful or not)
-		return $numbers;
+		// return the array of failed numbers with failure codes.
+		return $failed;
 	}
 	
 	public function getNewSMS() {
